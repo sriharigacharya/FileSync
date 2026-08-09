@@ -1,0 +1,14 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    headless: false   # allow Swing/AWT dialogs (JFileChooser for native folder picker)
+  datasource:
+    url: jdbc:sqlite:filesync.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true

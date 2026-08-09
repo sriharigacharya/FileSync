@@ -1,0 +1,104 @@
+/* App.css — Claymorphic component supplementary styles */
+
+/* Clay Table styling */
+.clay-table-container {
+  border-radius: 20px;
+  box-shadow: var(--clay-shadow-input);
+  overflow: hidden;
+  background: #f0f4f8;
+  margin-top: 16px;
+}
+
+.clay-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-sans);
+}
+
+.clay-table th {
+  background: #d8e3ee;
+  color: var(--text-h);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 12px 14px;
+  text-align: left;
+  border: none;
+}
+
+.clay-table td {
+  padding: 12px 14px;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.clay-table tr {
+  transition: background-color 0.2s ease;
+}
+
+.clay-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.clay-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.clay-table tbody tr.row-selected {
+  background: #e2f7ed;
+}
+
+/* Clay Select dropdown */
+.clay-select {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  border: none;
+  background: #ebf0f5;
+  color: var(--text-h);
+  box-shadow: var(--clay-shadow-input);
+  outline: none;
+  cursor: pointer;
+}
+
+.clay-select:focus {
+  box-shadow: inset 3px 3px 6px rgba(166, 180, 200, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.9), 0 0 0 3px rgba(168, 200, 232, 0.6);
+}
+
+/* Custom Clay Checkbox */
+.clay-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+  background: #ebf0f5;
+  box-shadow: var(--clay-shadow-input);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.clay-checkbox:checked {
+  background: var(--accent-mint);
+  box-shadow: var(--clay-shadow-raised);
+}
+
+.clay-checkbox:checked::after {
+  content: '✓';
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--accent-mint-text);
+}
+
+.clay-checkbox:focus-visible {
+  outline: 2px solid #7baed4;
+  outline-offset: 2px;
+}
