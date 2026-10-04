@@ -21,10 +21,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JFileChooser;
@@ -106,21 +108,6 @@ public class DeviceController {
         java.util.Set<String> matchedDeviceIds = new java.util.HashSet<>();
 
         for (DriveInfo drive : drives) {
-            List<SyncMeta> signatures = signatureScanner
-                    .scanForSignatures(Path.of(drive.path()));
-
-            // Pick the relevant signature
-            SyncMeta match = null;
-            if (groupId != null) {
-                match = signatures.stream()
-                        .filter(m -> groupId.equals(m.getSyncGroupId()))
-                        .findFirst()
-                        .orElse(null);
-            } else if (!signatures.isEmpty()) {
-                // No group filter — take the first found signature
-                match = signatures.get(0);
-            }
-
             DriveStatusResponse dto = new DriveStatusResponse();
             dto.setDrivePath(drive.path());
             dto.setDriveLabel(drive.label());
@@ -128,41 +115,95 @@ public class DeviceController {
             dto.setFreeBytes(drive.freeBytes());
             dto.setCurrentPcStateVersion(currentPcStateVersion);
 
-            if (match != null) {
-                dto.setStatus("RECOGNIZED");
-                dto.setSyncRootPath(match.getSyncRootPath());
-                dto.setSyncGroupId(match.getSyncGroupId());
-                dto.setSyncGroupLabel(match.getSyncGroupLabel());
-                dto.setDeviceId(match.getDeviceId());
-                dto.setDeviceLabel(match.getDeviceLabel());
-                dto.setSourceOnly(match.isSourceOnly());
-
-                long deviceVersion = match.getLastSyncedPcStateVersion();
-                if (match.getDeviceId() != null) {
-                    matchedDeviceIds.add(match.getDeviceId());
-                    Device dbDev = deviceRepository.findById(match.getDeviceId()).orElse(null);
-                    if (dbDev != null) {
-                        deviceVersion = dbDev.getLastSyncedPcStateVersion();
-                        dto.setSourceOnly(dbDev.isSourceOnly());
+            // 1. First, check if this drive directly hosts any known registered device in the group
+            Device matchedDbDev = null;
+            if (groupId != null) {
+                for (Device dbDev : dbDevices) {
+                    if (isDeviceOnDrive(dbDev, drive)) {
+                        Path rootPath = (dbDev.getSyncRootPath() != null) ? Path.of(dbDev.getSyncRootPath()) : null;
+                        if (rootPath != null && Files.exists(rootPath) && Files.isDirectory(rootPath)) {
+                            matchedDbDev = dbDev;
+                            break;
+                        }
                     }
                 }
-                dto.setLastSyncedPcStateVersion(deviceVersion);
+            }
+
+            if (matchedDbDev != null) {
+                dto.setStatus("RECOGNIZED");
+                dto.setConnected(true);
+                dto.setSyncRootPath(matchedDbDev.getSyncRootPath());
+                dto.setSyncGroupId(matchedDbDev.getSyncGroupId());
+                dto.setDeviceId(matchedDbDev.getId());
+                dto.setDeviceLabel(matchedDbDev.getLabel());
+                dto.setSourceOnly(matchedDbDev.isSourceOnly());
+                dto.setLastSyncedPcStateVersion(matchedDbDev.getLastSyncedPcStateVersion());
+                matchedDeviceIds.add(matchedDbDev.getId());
             } else {
-                dto.setStatus("NEW");
+                // 2. Fall back to scanning the drive root up to MAX_DEPTH for signature files
+                List<SyncMeta> signatures = Collections.emptyList();
+                try {
+                    signatures = signatureScanner.scanForSignatures(Path.of(drive.path()));
+                } catch (Exception ignored) {}
+
+                SyncMeta match = null;
+                if (groupId != null) {
+                    match = signatures.stream()
+                            .filter(m -> groupId.equals(m.getSyncGroupId()))
+                            .findFirst()
+                            .orElse(null);
+                } else if (!signatures.isEmpty()) {
+                    match = signatures.get(0);
+                }
+
+                if (match != null) {
+                    dto.setStatus("RECOGNIZED");
+                    dto.setConnected(true);
+                    dto.setSyncRootPath(match.getSyncRootPath());
+                    dto.setSyncGroupId(match.getSyncGroupId());
+                    dto.setSyncGroupLabel(match.getSyncGroupLabel());
+                    dto.setDeviceId(match.getDeviceId());
+                    dto.setDeviceLabel(match.getDeviceLabel());
+                    dto.setSourceOnly(match.isSourceOnly());
+
+                    long deviceVersion = match.getLastSyncedPcStateVersion();
+                    if (match.getDeviceId() != null) {
+                        matchedDeviceIds.add(match.getDeviceId());
+                        Device dbDev = deviceRepository.findById(match.getDeviceId()).orElse(null);
+                        if (dbDev != null) {
+                            deviceVersion = dbDev.getLastSyncedPcStateVersion();
+                            dto.setSourceOnly(dbDev.isSourceOnly());
+                        }
+                    }
+                    dto.setLastSyncedPcStateVersion(deviceVersion);
+                } else {
+                    dto.setStatus("NEW");
+                    dto.setConnected(true);
+                }
             }
 
             responses.add(dto);
         }
 
-        // Include registered devices for the group that are currently unmounted/disconnected
+        // Include registered devices for the group that were not matched to any drive above
         if (groupId != null) {
             for (Device dbDev : dbDevices) {
                 if (!matchedDeviceIds.contains(dbDev.getId())) {
                     DriveStatusResponse dto = new DriveStatusResponse();
-                    dto.setDrivePath(dbDev.getMountPath() != null && !dbDev.getMountPath().isBlank() ? dbDev.getMountPath() : "-");
-                    dto.setDriveLabel(dbDev.getLabel());
+                    boolean isPc = "PC".equalsIgnoreCase(dbDev.getLabel());
+                    dto.setDrivePath(isPc ? "PC" : (dbDev.getMountPath() != null && !dbDev.getMountPath().isBlank() ? dbDev.getMountPath() : "-"));
+                    dto.setDriveLabel(isPc ? "PC" : dbDev.getLabel());
                     dto.setStatus("RECOGNIZED");
-                    dto.setConnected(false);   // drive is not currently mounted
+
+                    boolean folderExists = false;
+                    if (dbDev.getSyncRootPath() != null && !dbDev.getSyncRootPath().isBlank()) {
+                        try {
+                            folderExists = Files.isDirectory(Path.of(dbDev.getSyncRootPath()));
+                        } catch (Exception ignored) {}
+                    }
+
+                    // Connected if the folder is accessible on this machine (e.g., PC folder or mounted drive)
+                    dto.setConnected(folderExists);
                     dto.setSyncRootPath(dbDev.getSyncRootPath());
                     dto.setSyncGroupId(dbDev.getSyncGroupId());
                     dto.setDeviceId(dbDev.getId());
@@ -177,6 +218,32 @@ public class DeviceController {
         }
 
         return ResponseEntity.ok(responses);
+    }
+
+    private boolean isDeviceOnDrive(Device device, DriveInfo drive) {
+        if (device == null || device.getSyncRootPath() == null || device.getSyncRootPath().isBlank() || drive == null || drive.path() == null) {
+            return false;
+        }
+        try {
+            Path devPath = Path.of(device.getSyncRootPath());
+            Path drivePath = Path.of(drive.path());
+
+            Path devRoot = devPath.getRoot();
+            Path driveRoot = drivePath.getRoot() != null ? drivePath.getRoot() : drivePath;
+            if (devRoot != null && driveRoot != null) {
+                String devRootStr = devRoot.toString().replaceAll("[\\\\/]+$", "");
+                String driveRootStr = driveRoot.toString().replaceAll("[\\\\/]+$", "");
+                if (devRootStr.equalsIgnoreCase(driveRootStr)) {
+                    return true;
+                }
+            }
+
+            String dPathStr = drive.path().replaceAll("[\\\\/]+$", "");
+            String devPathStr = device.getSyncRootPath().replaceAll("[\\\\/]+$", "");
+            return devPathStr.toUpperCase().startsWith(dPathStr.toUpperCase());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------

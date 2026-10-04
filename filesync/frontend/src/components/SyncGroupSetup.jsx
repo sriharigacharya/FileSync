@@ -68,6 +68,32 @@ export default function SyncGroupSetup({ selectedGroup, onSelectGroup, onPcFolde
     }
   };
 
+  const [currentPcFolder, setCurrentPcFolder] = useState(null);
+
+  const fetchPcFolder = async () => {
+    if (!selectedGroup) {
+      setCurrentPcFolder(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/groups/${selectedGroup.id}/pc-folder`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.configured) {
+          setCurrentPcFolder(data.path);
+        } else {
+          setCurrentPcFolder(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch PC folder', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPcFolder();
+  }, [selectedGroup]);
+
   const handleSetPcFolder = async (e) => {
     e.preventDefault();
     if (!selectedGroup || !pcFolderPath.trim()) return;
@@ -79,6 +105,8 @@ export default function SyncGroupSetup({ selectedGroup, onSelectGroup, onPcFolde
       });
       if (res.ok) {
         setMessage(`PC folder configured: ${pcFolderPath}`);
+        await fetchPcFolder();
+        setPcFolderPath('');
         if (onPcFolderSet) onPcFolderSet();
       } else {
         const text = await res.text();
@@ -86,6 +114,25 @@ export default function SyncGroupSetup({ selectedGroup, onSelectGroup, onPcFolde
       }
     } catch (err) {
       setMessage('Failed to set PC folder');
+    }
+  };
+
+  const handleRemovePcFolder = async () => {
+    if (!selectedGroup) return;
+    try {
+      const res = await fetch(`/api/groups/${selectedGroup.id}/pc-folder`, {
+        method: 'DELETE',
+      });
+      if (res.ok || res.status === 204) {
+        setMessage('PC folder removed. This group will now sync USB-to-USB only.');
+        setCurrentPcFolder(null);
+        setPcFolderPath('');
+        if (onPcFolderSet) onPcFolderSet();
+      } else {
+        setMessage('Failed to remove PC folder');
+      }
+    } catch (err) {
+      setMessage('Error removing PC folder');
     }
   };
 
@@ -164,17 +211,55 @@ export default function SyncGroupSetup({ selectedGroup, onSelectGroup, onPcFolde
 
       {selectedGroup && (
         <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid rgba(166, 180, 200, 0.2)' }}>
-          <h3>Set PC Folder for "{selectedGroup.label}"</h3>
-          <form onSubmit={handleSetPcFolder} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ margin: 0 }}>
+              Set PC Folder for "{selectedGroup.label}" <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>(Optional)</span>
+            </h3>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '6px 0 14px 0' }}>
+            Optional — leave unset if you only want to sync directly between USB drives without saving files on this PC.
+          </p>
+
+          {currentPcFolder ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
+              padding: '12px 16px', borderRadius: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0',
+              boxShadow: 'var(--clay-shadow-card)', marginBottom: '14px'
+            }}>
+              <div>
+                <span style={{ fontWeight: '600', color: '#166534', fontSize: '14px' }}>Active PC Folder: </span>
+                <code style={{ background: '#dcfce7', padding: '4px 8px', borderRadius: '8px', fontSize: '13px' }}>{currentPcFolder}</code>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemovePcFolder}
+                className="clay-btn clay-btn-peach"
+                style={{ padding: '6px 14px', fontSize: '12px', borderRadius: '12px' }}
+              >
+                ❌ Remove PC Folder (USB-only mode)
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              padding: '12px 16px', borderRadius: '16px', background: '#f8fafc',
+              boxShadow: 'var(--clay-shadow-input)', marginBottom: '14px'
+            }}>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>
+                📁 <strong>No PC folder configured.</strong> FileSync will sync directly between your connected USB drives.
+              </span>
+            </div>
+          )}
+
+          <form onSubmit={handleSetPcFolder} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginTop: '10px' }}>
             <input
               type="text"
-              placeholder="Absolute PC path (e.g. C:\Users\...\SyncFolder)"
+              placeholder={currentPcFolder ? "Change PC folder path..." : "Optional PC path (e.g. C:\\Users\\...\\SyncFolder)"}
               className="clay-input"
               value={pcFolderPath}
               onChange={(e) => setPcFolderPath(e.target.value)}
               style={{ flex: '1 1 380px' }}
             />
-            <button type="submit" className="clay-btn">Set PC Folder</button>
+            <button type="submit" className="clay-btn">{currentPcFolder ? 'Update PC Folder' : 'Set PC Folder'}</button>
           </form>
         </div>
       )}

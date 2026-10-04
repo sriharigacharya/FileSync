@@ -68,7 +68,7 @@ export default function DeviceList({ groupId, devices, onRefreshDevices, onSelec
       {!groupId ? (
         <p style={{ color: 'var(--text-muted)' }}>Please select a sync group first.</p>
       ) : devices.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)' }}>No drives detected.</p>
+        <p style={{ color: 'var(--text-muted)' }}>No external drives detected. Plug in your USB drives and click <strong>Scan Drives</strong>.</p>
       ) : (
         <div className="clay-table-container">
           <table className="clay-table">
@@ -86,7 +86,7 @@ export default function DeviceList({ groupId, devices, onRefreshDevices, onSelec
             <tbody>
               {devices.map((d, index) => (
                 <tr key={index} style={!d.connected ? { opacity: 0.65 } : {}}>
-                  <td><strong>{d.drivePath}</strong></td>
+                  <td><strong>{d.deviceLabel === 'PC' ? '💻 Local PC' : d.drivePath}</strong></td>
                   <td>{d.deviceLabel || d.driveLabel || '-'}</td>
                   <td>
                     <StatusBadge d={d} />

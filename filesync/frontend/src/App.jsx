@@ -38,7 +38,7 @@ export default function App() {
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '16px 0' }}>
       <header className="clay-card" style={{ marginBottom: '28px', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <h1 style={{ margin: 0, color: '#1c456b', fontSize: '30px' }}>⚡ FileSync — Phase 7 Review UI</h1>
+        <h1 style={{ margin: 0, color: '#1c456b', fontSize: '30px' }}>⚡ FileSync</h1>
         <p style={{ margin: 0, color: '#626d7d', fontSize: '15px', fontWeight: '500' }}>
           Offline-first multi-device USB sync orchestrator
         </p>

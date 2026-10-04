@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -72,6 +73,42 @@ public class GroupController {
         deviceRepository.deleteAllBySyncGroupId(groupId);
         pcStateRepository.deleteById(groupId);
         syncGroupRepository.deleteById(groupId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{groupId}/pc-folder")
+    public ResponseEntity<?> getPcFolder(@PathVariable String groupId) {
+        if (!syncGroupRepository.existsById(groupId)) {
+            return ResponseEntity.notFound().build();
+        }
+        List<Device> devices = deviceRepository.findBySyncGroupId(groupId);
+        Device pcDev = devices.stream()
+                .filter(d -> "PC".equalsIgnoreCase(d.getLabel()))
+                .findFirst()
+                .orElse(null);
+        if (pcDev == null || pcDev.getSyncRootPath() == null || pcDev.getSyncRootPath().isBlank()) {
+            return ResponseEntity.ok(Map.of("configured", false));
+        }
+        return ResponseEntity.ok(Map.of(
+                "configured", true,
+                "path", pcDev.getSyncRootPath(),
+                "deviceId", pcDev.getId()
+        ));
+    }
+
+    @DeleteMapping("/{groupId}/pc-folder")
+    @Transactional
+    public ResponseEntity<?> removePcFolder(@PathVariable String groupId) {
+        if (!syncGroupRepository.existsById(groupId)) {
+            return ResponseEntity.notFound().build();
+        }
+        List<Device> devices = deviceRepository.findBySyncGroupId(groupId);
+        devices.stream()
+                .filter(d -> "PC".equalsIgnoreCase(d.getLabel()))
+                .findFirst()
+                .ifPresent(pcDev -> {
+                    deviceRepository.delete(pcDev);
+                });
         return ResponseEntity.noContent().build();
     }
 

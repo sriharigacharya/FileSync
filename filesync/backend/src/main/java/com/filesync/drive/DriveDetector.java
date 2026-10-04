@@ -34,6 +34,9 @@ public class DriveDetector {
         try {
             for (FileStore store : FileSystems.getDefault().getFileStores()) {
                 String path  = resolvePath(store);
+                if (isCDriveOrSystemDrive(path)) {
+                    continue;
+                }
                 String label = store.name().isBlank() ? store.type() : store.name();
                 long   total = -1;
                 long   free  = -1;
@@ -59,6 +62,9 @@ public class DriveDetector {
             File[] roots = File.listRoots();
             if (roots != null) {
                 for (File root : roots) {
+                    if (isCDriveOrSystemDrive(root.getAbsolutePath())) {
+                        continue;
+                    }
                     result.add(new DriveInfo(
                             root.getAbsolutePath(),
                             "",
@@ -70,6 +76,23 @@ public class DriveDetector {
         }
 
         return result;
+    }
+
+    /**
+     * Checks if a path belongs to the primary C: system drive on Windows.
+     * C: drive is reserved for the host OS and is never surfaced as a removable/external drive.
+     */
+    private boolean isCDriveOrSystemDrive(String path) {
+        if (path == null || path.isBlank()) return false;
+        String clean = path.replaceAll("[\\\\/]+$", "").toUpperCase();
+        if ("C:".equals(clean)) {
+            return true;
+        }
+        String sysDrive = System.getenv("SystemDrive");
+        if (sysDrive != null && clean.equalsIgnoreCase(sysDrive.replaceAll("[\\\\/]+$", ""))) {
+            return true;
+        }
+        return false;
     }
 
     // ---------------------------------------------------------------------------
